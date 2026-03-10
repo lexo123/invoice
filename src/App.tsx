@@ -1,18 +1,57 @@
 import React, { useState, useEffect } from 'react';
-import { FileSpreadsheet, Download, Plus, Trash2, Loader2, AlertCircle } from 'lucide-react';
+import { FileSpreadsheet, Download, Plus, Trash2, Loader2, AlertCircle, Upload, FileText, Type, Settings, RefreshCw } from 'lucide-react';
+import localforage from 'localforage';
 import { generateExcel, generatePdf, InvoiceData, PdfMapping, PdfItemMapping } from './utils/generator';
 
 export default function App() {
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [setupMode, setSetupMode] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   
   const [excelTemplate, setExcelTemplate] = useState<ArrayBuffer | null>(null);
   const [pdfTemplate, setPdfTemplate] = useState<ArrayBuffer | null>(null);
   const [fontFile, setFontFile] = useState<ArrayBuffer | null>(null);
 
-  const [headerMappings, setHeaderMappings] = useState<PdfMapping[]>([]);
-  const [itemMapping, setItemMapping] = useState<PdfItemMapping | null>(null);
-  const [grandTotalMapping, setGrandTotalMapping] = useState<PdfMapping | null>(null);
+  const [headerMappings, setHeaderMappings] = useState<PdfMapping[]>(() => {
+    const saved = localStorage.getItem('invoiceHeaderMappings');
+    if (saved) return JSON.parse(saved);
+    return [
+      { id: 'date', pdfX: 450, pdfY: 720, fontSize: 10 },
+      { id: 'invoiceNum', pdfX: 450, pdfY: 700, fontSize: 10 },
+      { id: 'companyName', pdfX: 120, pdfY: 600, fontSize: 10 },
+      { id: 'companyId', pdfX: 120, pdfY: 580, fontSize: 10 },
+      { id: 'address', pdfX: 120, pdfY: 560, fontSize: 10 },
+    ];
+  });
+
+  const [itemMapping, setItemMapping] = useState<PdfItemMapping>(() => {
+    const saved = localStorage.getItem('invoiceItemMapping');
+    if (saved) return JSON.parse(saved);
+    return {
+      pdfStartY: 480,
+      pdfRowHeight: 20,
+      cols: {
+        name: { pdfX: 50 },
+        qty: { pdfX: 300 },
+        price: { pdfX: 400 },
+        total: { pdfX: 500 },
+      },
+    };
+  });
+
+  const [grandTotalMapping, setGrandTotalMapping] = useState<PdfMapping>(() => {
+    const saved = localStorage.getItem('invoiceGrandTotalMapping');
+    if (saved) return JSON.parse(saved);
+    return {
+      id: 'grandTotal', pdfX: 500, pdfY: 150, fontSize: 12
+    };
+  });
+
+  useEffect(() => {
+    localStorage.setItem('invoiceHeaderMappings', JSON.stringify(headerMappings));
+    localStorage.setItem('invoiceItemMapping', JSON.stringify(itemMapping));
+    localStorage.setItem('invoiceGrandTotalMapping', JSON.stringify(grandTotalMapping));
+  }, [headerMappings, itemMapping, grandTotalMapping]);
 
   const [invoiceData, setInvoiceData] = useState<InvoiceData>({
     filename: '',
@@ -32,6 +71,7 @@ export default function App() {
   useEffect(() => {
     const loadTemplates = async () => {
       try {
+        // 1. Try to load from public folder
         const [excelRes, pdfRes, fontRes, configRes] = await Promise.all([
           fetch('./template.xlsx').catch(() => null),
           fetch('./template.pdf').catch(() => null),
@@ -56,17 +96,56 @@ export default function App() {
           if (config.grandTotalMapping) setGrandTotalMapping(config.grandTotalMapping);
           
           setIsLoading(false);
-        } else {
-          setError("Could not load templates. Please ensure template.xlsx, template.pdf, font.ttf, and pdf-coordinates.json are in the public folder.");
-          setIsLoading(false);
+          setSetupMode(false);
+          return;
         }
+
+        // 2. If public folder fails, try localforage (browser storage)
+        const savedExcel = await localforage.getItem<ArrayBuffer>('excelTemplate');
+        const savedPdf = await localforage.getItem<ArrayBuffer>('pdfTemplate');
+        const savedFont = await localforage.getItem<ArrayBuffer>('fontFile');
+        
+        if (savedExcel && savedPdf && savedFont) {
+          setExcelTemplate(savedExcel);
+          setPdfTemplate(savedPdf);
+          setFontFile(savedFont);
+          setIsLoading(false);
+          setSetupMode(false);
+          return;
+        }
+
+        // 3. If both fail, show setup mode
+        setErrorMsg("Templates not found in the 'public' folder. Please upload them below to continue testing.");
+        setSetupMode(true);
+        setIsLoading(false);
+
       } catch (err) {
-        setError("An error occurred while loading templates.");
+        setErrorMsg("An error occurred while loading templates.");
+        setSetupMode(true);
         setIsLoading(false);
       }
     };
     loadTemplates();
   }, []);
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, setter: (buffer: ArrayBuffer) => void, storageKey: string) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        if (event.target?.result) {
+          const buffer = event.target.result as ArrayBuffer;
+          setter(buffer);
+          try {
+            await localforage.setItem(storageKey, buffer);
+          } catch (error) {
+            console.error('Error saving template to storage', error);
+          }
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+  };
 
   const handleDownloadExcel = async () => {
     if (!excelTemplate) return;
@@ -118,13 +197,46 @@ export default function App() {
     );
   }
 
-  if (error) {
+  if (setupMode) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center">
-        <div className="bg-red-50 text-red-600 p-6 rounded-2xl max-w-md w-full border border-red-100 shadow-sm">
-          <AlertCircle className="w-10 h-10 mx-auto mb-4" />
-          <h2 className="text-lg font-semibold mb-2">Setup Required</h2>
-          <p className="text-sm opacity-90">{error}</p>
+      <div className="min-h-screen bg-slate-50 p-4 sm:p-6 font-sans">
+        <div className="max-w-3xl mx-auto bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+          <div className="flex items-center gap-3 mb-6 text-amber-600 bg-amber-50 p-4 rounded-xl border border-amber-100">
+            <AlertCircle className="w-6 h-6 flex-shrink-0" />
+            <div>
+              <h2 className="font-semibold">Missing Templates</h2>
+              <p className="text-sm opacity-90">{errorMsg}</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-8">
+            <div className="border-2 border-dashed border-slate-300 rounded-xl p-4 text-center hover:bg-slate-50 transition-colors">
+              <FileSpreadsheet className="w-8 h-8 mx-auto text-green-600 mb-2" />
+              <p className="font-medium">Excel Template</p>
+              <input type="file" accept=".xlsx" onChange={(e) => handleFileUpload(e, setExcelTemplate, 'excelTemplate')} className="text-xs w-full mt-2" />
+              {excelTemplate && <p className="text-xs text-green-600 mt-2 font-medium bg-green-50 py-1 rounded">✓ Uploaded</p>}
+            </div>
+            <div className="border-2 border-dashed border-slate-300 rounded-xl p-4 text-center hover:bg-slate-50 transition-colors">
+              <FileText className="w-8 h-8 mx-auto text-red-500 mb-2" />
+              <p className="font-medium">PDF Template</p>
+              <input type="file" accept=".pdf" onChange={(e) => handleFileUpload(e, setPdfTemplate, 'pdfTemplate')} className="text-xs w-full mt-2" />
+              {pdfTemplate && <p className="text-xs text-green-600 mt-2 font-medium bg-green-50 py-1 rounded">✓ Uploaded</p>}
+            </div>
+            <div className="border-2 border-dashed border-slate-300 rounded-xl p-4 text-center hover:bg-slate-50 transition-colors">
+              <Type className="w-8 h-8 mx-auto text-blue-500 mb-2" />
+              <p className="font-medium">Georgian Font (.ttf)</p>
+              <input type="file" accept=".ttf" onChange={(e) => handleFileUpload(e, setFontFile, 'fontFile')} className="text-xs w-full mt-2" />
+              {fontFile && <p className="text-xs text-green-600 mt-2 font-medium bg-green-50 py-1 rounded">✓ Uploaded</p>}
+            </div>
+          </div>
+
+          <button 
+            onClick={() => setSetupMode(false)}
+            disabled={!excelTemplate || !pdfTemplate || !fontFile}
+            className="w-full bg-indigo-600 text-white py-3 rounded-xl font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-indigo-700 transition-colors"
+          >
+            Continue to App
+          </button>
         </div>
       </div>
     );
@@ -137,6 +249,12 @@ export default function App() {
           <FileSpreadsheet className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-600" />
           Invoice Generator
         </h1>
+        <button 
+          onClick={() => setSetupMode(true)}
+          className="text-xs text-slate-500 hover:text-slate-700 flex items-center gap-1 bg-slate-100 px-3 py-1.5 rounded-md"
+        >
+          <Settings className="w-3 h-3" /> Settings
+        </button>
       </header>
 
       <main className="max-w-5xl mx-auto p-4 sm:p-6 mt-4">
