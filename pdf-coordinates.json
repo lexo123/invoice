@@ -1,0 +1,71 @@
+{
+  "headerMappings": [
+    {
+      "id": "date",
+      "label": "თარიღი (Date)",
+      "excelCell": "G4",
+      "pdfX": 455,
+      "pdfY": 677,
+      "fontSize": 10
+    },
+    {
+      "id": "invoiceNum",
+      "label": "ინვოისი# (Invoice#)",
+      "excelCell": "G5",
+      "pdfX": 452,
+      "pdfY": 661,
+      "fontSize": 10
+    },
+    {
+      "id": "companyName",
+      "label": "კომპ/სახელი (Company Name)",
+      "excelCell": "B8",
+      "pdfX": 114,
+      "pdfY": 569,
+      "fontSize": 10
+    },
+    {
+      "id": "companyId",
+      "label": "ს/კ (Company ID)",
+      "excelCell": "B9",
+      "pdfX": 58,
+      "pdfY": 555,
+      "fontSize": 10
+    },
+    {
+      "id": "address",
+      "label": "მისამართი (Address)",
+      "excelCell": "B10",
+      "pdfX": 97,
+      "pdfY": 541,
+      "fontSize": 10
+    }
+  ],
+  "itemMapping": {
+    "excelStartRow": 14,
+    "pdfStartY": 494,
+    "pdfRowHeight": 14,
+    "cols": {
+      "name": {
+        "pdfX": 38
+      },
+      "qty": {
+        "pdfX": 308
+      },
+      "price": {
+        "pdfX": 384
+      },
+      "total": {
+        "pdfX": 465
+      }
+    }
+  },
+  "grandTotalMapping": {
+    "id": "grandTotal",
+    "label": "სულ (Grand Total)",
+    "excelCell": "F25",
+    "pdfX": 459,
+    "pdfY": 158,
+    "fontSize": 12
+  }
+}
