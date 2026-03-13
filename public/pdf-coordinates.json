@@ -5,7 +5,7 @@
       "label": "თარიღი (Date)",
       "excelCell": "G4",
       "pdfX": 455,
-      "pdfY": 677,
+      "pdfY": 675,
       "fontSize": 10
     },
     {
@@ -20,43 +20,43 @@
       "id": "companyName",
       "label": "კომპ/სახელი (Company Name)",
       "excelCell": "B8",
-      "pdfX": 114,
-      "pdfY": 569,
+      "pdfX": 107,
+      "pdfY": 572,
       "fontSize": 10
     },
     {
       "id": "companyId",
       "label": "ს/კ (Company ID)",
       "excelCell": "B9",
-      "pdfX": 58,
-      "pdfY": 555,
+      "pdfX": 55,
+      "pdfY": 557,
       "fontSize": 10
     },
     {
       "id": "address",
       "label": "მისამართი (Address)",
       "excelCell": "B10",
-      "pdfX": 97,
-      "pdfY": 541,
+      "pdfX": 95,
+      "pdfY": 547,
       "fontSize": 10
     }
   ],
   "itemMapping": {
     "excelStartRow": 14,
-    "pdfStartY": 494,
-    "pdfRowHeight": 14,
+    "pdfStartY": 500,
+    "pdfRowHeight": 14.5,
     "cols": {
       "name": {
         "pdfX": 38
       },
       "qty": {
-        "pdfX": 308
+        "pdfX": 341
       },
       "price": {
-        "pdfX": 384
+        "pdfX": 414
       },
       "total": {
-        "pdfX": 465
+        "pdfX": 554
       }
     }
   },
