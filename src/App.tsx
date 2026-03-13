@@ -68,32 +68,68 @@ export default function App() {
   const [exportPdf, setExportPdf] = useState(true);
   const [exportExcel, setExportExcel] = useState(false);
 
+  const [configText, setConfigText] = useState('');
+
+  useEffect(() => {
+    if (setupMode) {
+      setConfigText(JSON.stringify({
+        headerMappings,
+        itemMapping,
+        grandTotalMapping
+      }, null, 2));
+    }
+  }, [setupMode, headerMappings, itemMapping, grandTotalMapping]);
+
+  const handleSaveConfig = () => {
+    try {
+      const parsed = JSON.parse(configText);
+      if (parsed.headerMappings) setHeaderMappings(parsed.headerMappings);
+      if (parsed.itemMapping) setItemMapping(parsed.itemMapping);
+      if (parsed.grandTotalMapping) setGrandTotalMapping(parsed.grandTotalMapping);
+      alert('Coordinates updated successfully! You can now test the PDF.');
+    } catch (e) {
+      alert('Invalid JSON format. Please check for errors.');
+    }
+  };
+
   useEffect(() => {
     const loadTemplates = async () => {
       try {
         // 1. Try to load from public folder
+        const baseUrl = import.meta.env.BASE_URL || './';
+        const getFile = (name: string) => fetch(`${baseUrl}${name}`).catch(() => null);
+
         const [excelRes, pdfRes, fontRes, configRes] = await Promise.all([
-          fetch('./template.xlsx').catch(() => null),
-          fetch('./template.pdf').catch(() => null),
-          fetch('./font.ttf').catch(() => null),
-          fetch('./pdf-coordinates.json').catch(() => null)
+          getFile('template.xlsx'),
+          getFile('template.pdf'),
+          getFile('font.ttf'),
+          getFile('pdf-coordinates.json')
         ]);
 
         const isHtml = (res: Response | null) => res?.headers.get('content-type')?.includes('text/html');
+        const isOk = (res: Response | null) => res?.ok && !isHtml(res);
 
-        if (excelRes?.ok && !isHtml(excelRes) &&
-            pdfRes?.ok && !isHtml(pdfRes) &&
-            fontRes?.ok && !isHtml(fontRes) &&
-            configRes?.ok && !isHtml(configRes)) {
+        const missingFiles = [];
+        if (!isOk(excelRes)) missingFiles.push('template.xlsx');
+        if (!isOk(pdfRes)) missingFiles.push('template.pdf');
+        if (!isOk(fontRes)) missingFiles.push('font.ttf');
+
+        if (missingFiles.length === 0) {
           
-          setExcelTemplate(await excelRes.arrayBuffer());
-          setPdfTemplate(await pdfRes.arrayBuffer());
-          setFontFile(await fontRes.arrayBuffer());
+          setExcelTemplate(await excelRes!.arrayBuffer());
+          setPdfTemplate(await pdfRes!.arrayBuffer());
+          setFontFile(await fontRes!.arrayBuffer());
           
-          const config = await configRes.json();
-          if (config.headerMappings) setHeaderMappings(config.headerMappings);
-          if (config.itemMapping) setItemMapping(config.itemMapping);
-          if (config.grandTotalMapping) setGrandTotalMapping(config.grandTotalMapping);
+          if (isOk(configRes)) {
+            try {
+              const config = await configRes!.json();
+              if (config.headerMappings) setHeaderMappings(config.headerMappings);
+              if (config.itemMapping) setItemMapping(config.itemMapping);
+              if (config.grandTotalMapping) setGrandTotalMapping(config.grandTotalMapping);
+            } catch (e) {
+              console.error("Failed to parse pdf-coordinates.json", e);
+            }
+          }
           
           setIsLoading(false);
           setSetupMode(false);
@@ -115,7 +151,7 @@ export default function App() {
         }
 
         // 3. If both fail, show setup mode
-        setErrorMsg("Templates not found in the 'public' folder. Please upload them below to continue testing.");
+        setErrorMsg(`Failed to load: ${missingFiles.join(', ')}. Make sure they are inside the 'public' folder of your repository.`);
         setSetupMode(true);
         setIsLoading(false);
 
@@ -228,6 +264,24 @@ export default function App() {
               <input type="file" accept=".ttf" onChange={(e) => handleFileUpload(e, setFontFile, 'fontFile')} className="text-xs w-full mt-2" />
               {fontFile && <p className="text-xs text-green-600 mt-2 font-medium bg-green-50 py-1 rounded">✓ Uploaded</p>}
             </div>
+          </div>
+
+          <div className="mb-8 border-t border-slate-200 pt-6">
+            <h3 className="font-semibold text-slate-800 mb-2">PDF Coordinates (JSON)</h3>
+            <p className="text-sm text-slate-500 mb-4">
+              Edit the coordinates here to test them live. Once you are happy with the result, copy this JSON and save it as <code>pdf-coordinates.json</code> in your public folder on GitHub.
+            </p>
+            <textarea
+              value={configText}
+              onChange={(e) => setConfigText(e.target.value)}
+              className="w-full h-64 p-3 font-mono text-sm bg-slate-900 text-slate-50 rounded-xl border border-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none"
+            />
+            <button
+              onClick={handleSaveConfig}
+              className="mt-3 bg-slate-100 text-slate-700 px-4 py-2 rounded-lg font-medium hover:bg-slate-200 transition-colors border border-slate-300"
+            >
+              Apply Coordinates
+            </button>
           </div>
 
           <button 

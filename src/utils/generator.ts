@@ -154,8 +154,10 @@ export async function generatePdf(
     }
     
     if (item.qty !== '') {
-      page.drawText(qty.toString(), {
-        x: itemMapping.cols.qty.pdfX,
+      const text = qty.toString();
+      const textWidth = customFont.widthOfTextAtSize(text, 10);
+      page.drawText(text, {
+        x: itemMapping.cols.qty.pdfX - (textWidth / 2),
         y,
         size: 10,
         font: customFont,
@@ -163,8 +165,10 @@ export async function generatePdf(
     }
     
     if (item.price !== '') {
-      page.drawText(price.toFixed(2), {
-        x: itemMapping.cols.price.pdfX,
+      const text = price.toFixed(2);
+      const textWidth = customFont.widthOfTextAtSize(text, 10);
+      page.drawText(text, {
+        x: itemMapping.cols.price.pdfX - (textWidth / 2),
         y,
         size: 10,
         font: customFont,
@@ -172,8 +176,10 @@ export async function generatePdf(
     }
     
     if (item.qty !== '' && item.price !== '') {
-      page.drawText(total.toFixed(2), {
-        x: itemMapping.cols.total.pdfX,
+      const text = total.toFixed(2);
+      const textWidth = customFont.widthOfTextAtSize(text, 10);
+      page.drawText(text, {
+        x: itemMapping.cols.total.pdfX - textWidth,
         y,
         size: 10,
         font: customFont,
