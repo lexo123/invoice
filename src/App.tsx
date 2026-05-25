@@ -36,8 +36,8 @@ export default function App() {
       { id: 'companyName', pdfX: 120, pdfY: 600, fontSize: 10 },
       { id: 'companyId', pdfX: 120, pdfY: 580, fontSize: 10 },
       { id: 'address', pdfX: 120, pdfY: 560, fontSize: 10 },
-      { id: 'exchangeRate', pdfX: 450, pdfY: 680, fontSize: 10 },
-      { id: 'exchangeRateLabel', pdfX: 350, pdfY: 680, fontSize: 10 },
+      { id: 'exchangeRate', pdfX: 474, pdfY: 642, fontSize: 10 },
+      { id: 'exchangeRateLabel', pdfX: 393, pdfY: 642, fontSize: 10 },
     ];
   });
 
