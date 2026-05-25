@@ -16,14 +16,26 @@ export default function App() {
     const saved = localStorage.getItem('invoiceHeaderMappings');
     if (saved) {
       try {
-        const parsed = JSON.parse(saved) as PdfMapping[];
+        let parsed = JSON.parse(saved) as PdfMapping[];
+        
+        // Migrate old exchangeRate & exchangeRateLabel coordinates if they are old defaults
+        parsed = parsed.map((m) => {
+          if (m.id === 'exchangeRate' && m.pdfX === 450 && m.pdfY === 680) {
+            return { ...m, pdfX: 474, pdfY: 642 };
+          }
+          if (m.id === 'exchangeRateLabel' && m.pdfX === 350 && m.pdfY === 680) {
+            return { ...m, pdfX: 393, pdfY: 642 };
+          }
+          return m;
+        });
+
         const hasExchangeRate = parsed.some((m) => m.id === 'exchangeRate');
         if (!hasExchangeRate) {
-          parsed.push({ id: 'exchangeRate', pdfX: 450, pdfY: 680, fontSize: 10 });
+          parsed.push({ id: 'exchangeRate', pdfX: 474, pdfY: 642, fontSize: 10 });
         }
         const hasExchangeRateLabel = parsed.some((m) => m.id === 'exchangeRateLabel');
         if (!hasExchangeRateLabel) {
-          parsed.push({ id: 'exchangeRateLabel', pdfX: 350, pdfY: 680, fontSize: 10 });
+          parsed.push({ id: 'exchangeRateLabel', pdfX: 393, pdfY: 642, fontSize: 10 });
         }
         return parsed;
       } catch (err) {
@@ -142,15 +154,25 @@ export default function App() {
             try {
               const config = await configRes!.json();
               if (config.headerMappings) {
-                const hasRateMap = config.headerMappings.some((m: PdfMapping) => m.id === 'exchangeRate');
+                let mappedHeaders = config.headerMappings as PdfMapping[];
+                mappedHeaders = mappedHeaders.map((m: PdfMapping) => {
+                  if (m.id === 'exchangeRate' && m.pdfX === 450 && m.pdfY === 680) {
+                    return { ...m, pdfX: 474, pdfY: 642 };
+                  }
+                  if (m.id === 'exchangeRateLabel' && m.pdfX === 350 && m.pdfY === 680) {
+                    return { ...m, pdfX: 393, pdfY: 642 };
+                  }
+                  return m;
+                });
+                const hasRateMap = mappedHeaders.some((m: PdfMapping) => m.id === 'exchangeRate');
                 if (!hasRateMap) {
-                  config.headerMappings.push({ id: 'exchangeRate', pdfX: 450, pdfY: 680, fontSize: 10 });
+                  mappedHeaders.push({ id: 'exchangeRate', pdfX: 474, pdfY: 642, fontSize: 10 });
                 }
-                const hasExchangeRateLabel = config.headerMappings.some((m: PdfMapping) => m.id === 'exchangeRateLabel');
+                const hasExchangeRateLabel = mappedHeaders.some((m: PdfMapping) => m.id === 'exchangeRateLabel');
                 if (!hasExchangeRateLabel) {
-                  config.headerMappings.push({ id: 'exchangeRateLabel', pdfX: 350, pdfY: 680, fontSize: 10 });
+                  mappedHeaders.push({ id: 'exchangeRateLabel', pdfX: 393, pdfY: 642, fontSize: 10 });
                 }
-                setHeaderMappings(config.headerMappings);
+                setHeaderMappings(mappedHeaders);
               }
               if (config.itemMapping) setItemMapping(config.itemMapping);
               if (config.grandTotalMapping) setGrandTotalMapping(config.grandTotalMapping);
@@ -304,12 +326,25 @@ export default function App() {
               onChange={(e) => setConfigText(e.target.value)}
               className="w-full h-64 p-3 font-mono text-sm bg-slate-900 text-slate-50 rounded-xl border border-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none"
             />
-            <button
-              onClick={handleSaveConfig}
-              className="mt-3 bg-slate-100 text-slate-700 px-4 py-2 rounded-lg font-medium hover:bg-slate-200 transition-colors border border-slate-300"
-            >
-              Apply Coordinates
-            </button>
+             <div className="flex gap-2">
+              <button
+                onClick={handleSaveConfig}
+                className="mt-3 bg-slate-100 text-slate-700 px-4 py-2 rounded-lg font-medium hover:bg-slate-200 transition-colors border border-slate-300"
+              >
+                Apply Coordinates
+              </button>
+              <button
+                onClick={() => {
+                  localStorage.removeItem('invoiceHeaderMappings');
+                  localStorage.removeItem('invoiceItemMapping');
+                  localStorage.removeItem('invoiceGrandTotalMapping');
+                  window.location.reload();
+                }}
+                className="mt-3 bg-red-50 text-red-600 px-4 py-2 rounded-lg font-medium hover:bg-red-100 transition-colors border border-red-200"
+              >
+                Reset to Defaults
+              </button>
+            </div>
           </div>
 
           <button 
