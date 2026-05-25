@@ -14,13 +14,30 @@ export default function App() {
 
   const [headerMappings, setHeaderMappings] = useState<PdfMapping[]>(() => {
     const saved = localStorage.getItem('invoiceHeaderMappings');
-    if (saved) return JSON.parse(saved);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved) as PdfMapping[];
+        const hasExchangeRate = parsed.some((m) => m.id === 'exchangeRate');
+        if (!hasExchangeRate) {
+          parsed.push({ id: 'exchangeRate', pdfX: 450, pdfY: 680, fontSize: 10 });
+        }
+        const hasExchangeRateLabel = parsed.some((m) => m.id === 'exchangeRateLabel');
+        if (!hasExchangeRateLabel) {
+          parsed.push({ id: 'exchangeRateLabel', pdfX: 350, pdfY: 680, fontSize: 10 });
+        }
+        return parsed;
+      } catch (err) {
+        console.error('Error parsing saved local mappings', err);
+      }
+    }
     return [
       { id: 'date', pdfX: 450, pdfY: 720, fontSize: 10 },
       { id: 'invoiceNum', pdfX: 450, pdfY: 700, fontSize: 10 },
       { id: 'companyName', pdfX: 120, pdfY: 600, fontSize: 10 },
       { id: 'companyId', pdfX: 120, pdfY: 580, fontSize: 10 },
       { id: 'address', pdfX: 120, pdfY: 560, fontSize: 10 },
+      { id: 'exchangeRate', pdfX: 450, pdfY: 680, fontSize: 10 },
+      { id: 'exchangeRateLabel', pdfX: 350, pdfY: 680, fontSize: 10 },
     ];
   });
 
@@ -60,8 +77,9 @@ export default function App() {
     companyName: '',
     companyId: '',
     address: '',
+    exchangeRate: 2.70,
     items: [
-      { name: '', qty: '', price: '' },
+      { name: '', qty: '', price: '', currency: 'GEL' },
     ],
   });
 
@@ -96,7 +114,7 @@ export default function App() {
     const loadTemplates = async () => {
       try {
         // 1. Try to load from public folder
-        const baseUrl = import.meta.env.BASE_URL || './';
+        const baseUrl = (import.meta as any).env?.BASE_URL || './';
         const getFile = (name: string) => fetch(`${baseUrl}${name}`).catch(() => null);
 
         const [excelRes, pdfRes, fontRes, configRes] = await Promise.all([
@@ -123,7 +141,17 @@ export default function App() {
           if (isOk(configRes)) {
             try {
               const config = await configRes!.json();
-              if (config.headerMappings) setHeaderMappings(config.headerMappings);
+              if (config.headerMappings) {
+                const hasRateMap = config.headerMappings.some((m: PdfMapping) => m.id === 'exchangeRate');
+                if (!hasRateMap) {
+                  config.headerMappings.push({ id: 'exchangeRate', pdfX: 450, pdfY: 680, fontSize: 10 });
+                }
+                const hasExchangeRateLabel = config.headerMappings.some((m: PdfMapping) => m.id === 'exchangeRateLabel');
+                if (!hasExchangeRateLabel) {
+                  config.headerMappings.push({ id: 'exchangeRateLabel', pdfX: 350, pdfY: 680, fontSize: 10 });
+                }
+                setHeaderMappings(config.headerMappings);
+              }
               if (config.itemMapping) setItemMapping(config.itemMapping);
               if (config.grandTotalMapping) setGrandTotalMapping(config.grandTotalMapping);
             } catch (e) {
@@ -364,6 +392,17 @@ export default function App() {
                     className="w-full border rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-indigo-500 outline-none" 
                   />
                 </div>
+                <div>
+                  <label className="block text-sm text-slate-500 mb-1">დოლარის კურსი (Exchange Rate USD to GEL)</label>
+                  <input 
+                    type="number" 
+                    step="0.0001"
+                    placeholder="e.g. 2.7000"
+                    value={invoiceData.exchangeRate} 
+                    onChange={(e) => setInvoiceData({...invoiceData, exchangeRate: e.target.value === '' ? '' : Number(e.target.value)})}
+                    className="w-full border rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-indigo-500 outline-none" 
+                  />
+                </div>
               </div>
 
               <div className="space-y-4">
@@ -372,7 +411,7 @@ export default function App() {
                   <button 
                     onClick={() => {
                       if (invoiceData.items.length < 8) {
-                        setInvoiceData({...invoiceData, items: [...invoiceData.items, { name: '', qty: '', price: '' }]})
+                        setInvoiceData({...invoiceData, items: [...invoiceData.items, { name: '', qty: '', price: '', currency: 'GEL' }]})
                       } else {
                         alert('მაქსიმუმ 8 პროდუქტის დამატებაა შესაძლებელი.');
                       }
@@ -410,7 +449,7 @@ export default function App() {
                             setInvoiceData({...invoiceData, items: newItems});
                           }} className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
                         </div>
-                        <div className="grid grid-cols-3 gap-2 sm:col-span-12">
+                        <div className="grid grid-cols-4 gap-2 sm:col-span-12">
                           <div>
                             <label className="block text-xs text-slate-500 mb-1">რაოდენობა</label>
                             <input type="number" value={item.qty} onChange={(e) => {
@@ -428,9 +467,30 @@ export default function App() {
                             }} className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
                           </div>
                           <div>
-                            <label className="block text-xs text-slate-500 mb-1">ჯამი</label>
-                            <div className="w-full bg-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 font-medium flex items-center h-[38px]">
-                              {(item.qty === '' || item.price === '') ? '' : (Number(item.qty) * Number(item.price)).toFixed(2)}
+                            <label className="block text-xs text-slate-500 mb-1">ვალუტა</label>
+                            <select 
+                              value={item.currency || 'GEL'} 
+                              onChange={(e) => {
+                                const newItems = [...invoiceData.items];
+                                newItems[idx].currency = e.target.value as 'GEL' | 'USD';
+                                setInvoiceData({...invoiceData, items: newItems});
+                              }}
+                              className="w-full border rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-indigo-500 outline-none h-[38px] cursor-pointer"
+                            >
+                              <option value="GEL">₾ GEL</option>
+                              <option value="USD">$ USD</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs text-slate-500 mb-1">ჯამი (Total)</label>
+                            <div className="w-full bg-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 font-medium flex items-center h-[38px] overflow-hidden">
+                              {(() => {
+                                if (item.qty === '' || item.price === '') return '';
+                                const qtyVal = Number(item.qty);
+                                const priceVal = Number(item.price);
+                                const totalVal = qtyVal * priceVal;
+                                return item.currency === 'USD' ? `${totalVal.toFixed(2)} $` : `${totalVal.toFixed(2)} ლ`;
+                              })()}
                             </div>
                           </div>
                         </div>
@@ -442,7 +502,13 @@ export default function App() {
                 <div className="flex justify-between items-center pt-4 border-t">
                   <span className="font-medium text-slate-700">სულ ჯამი:</span>
                   <span className="text-xl font-bold text-indigo-600">
-                    {invoiceData.items.reduce((sum, item) => sum + (Number(item.qty || 0) * Number(item.price || 0)), 0).toFixed(2)}
+                    {invoiceData.items.reduce((sum, item) => {
+                      const q = item.qty === '' ? 0 : Number(item.qty);
+                      const p = item.price === '' ? 0 : Number(item.price);
+                      const isUsd = item.currency === 'USD';
+                      const rate = invoiceData.exchangeRate === '' || invoiceData.exchangeRate === undefined ? 1 : Number(invoiceData.exchangeRate);
+                      return sum + (q * p * (isUsd ? rate : 1));
+                    }, 0).toFixed(2)} ლარი
                   </span>
                 </div>
               </div>

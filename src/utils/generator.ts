@@ -27,7 +27,8 @@ export type InvoiceData = {
   companyName: string;
   companyId: string;
   address: string;
-  items: Array<{ name: string; qty: number | ''; price: number | '' }>;
+  exchangeRate?: number | '';
+  items: Array<{ name: string; qty: number | ''; price: number | ''; currency?: 'GEL' | 'USD'; }>;
 };
 
 export async function generateExcel(
@@ -43,6 +44,11 @@ export async function generateExcel(
   
   // D5: Invoice Number
   worksheet.getCell('D5').value = data.invoiceNum;
+
+  // D6: Exchange Rate
+  if (data.exchangeRate !== undefined) {
+    worksheet.getCell('D6').value = data.exchangeRate;
+  }
 
   // Helper function to append text to a cell that already has a prefix (like "კომპ/სახელი: ")
   const appendToCell = (cellAddress: string, textToAppend: string) => {
@@ -78,14 +84,18 @@ export async function generateExcel(
     if (row <= 24) { // Max 8 items (17 to 24)
       const qty = item.qty === '' ? 0 : Number(item.qty);
       const price = item.price === '' ? 0 : Number(item.price);
-      const total = qty * price;
+      const isUsd = item.currency === 'USD';
+      const rate = data.exchangeRate === '' || data.exchangeRate === undefined ? 1 : Number(data.exchangeRate);
+      
+      const itemTotalInOriginalCurrency = qty * price;
+      const itemTotalInGel = qty * price * (isUsd ? rate : 1);
 
       worksheet.getCell(`A${row}`).value = item.name;
       worksheet.getCell(`B${row}`).value = item.qty === '' ? '' : qty;
       worksheet.getCell(`C${row}`).value = item.price === '' ? '' : price;
-      worksheet.getCell(`D${row}`).value = (item.qty === '' || item.price === '') ? '' : total;
+      worksheet.getCell(`D${row}`).value = (item.qty === '' || item.price === '') ? '' : itemTotalInOriginalCurrency;
       
-      grandTotal += total;
+      grandTotal += itemTotalInGel;
     }
   });
 
@@ -119,17 +129,33 @@ export async function generatePdf(
     companyName: data.companyName,
     companyId: data.companyId,
     address: data.address,
+    exchangeRate: data.exchangeRate !== undefined && data.exchangeRate !== '' ? `${data.exchangeRate} ლ` : '',
+    exchangeRateLabel: 'დოლარის კურსი',
   };
 
   headerMappings.forEach((mapping) => {
     if (dataMap[mapping.id]) {
-      page.drawText(dataMap[mapping.id], {
-        x: mapping.pdfX,
-        y: mapping.pdfY,
-        size: mapping.fontSize,
-        font: customFont,
-        color: rgb(0, 0, 0),
-      });
+      const text = dataMap[mapping.id];
+      if (mapping.id === 'exchangeRateLabel') {
+        // Draw 3 times slightly offset horizontally to create a nice bold weight effect (simulated bold)
+        for (let offset = 0; offset <= 0.6; offset += 0.3) {
+          page.drawText(text, {
+            x: mapping.pdfX + offset,
+            y: mapping.pdfY,
+            size: mapping.fontSize,
+            font: customFont,
+            color: rgb(0, 0, 0),
+          });
+        }
+      } else {
+        page.drawText(text, {
+          x: mapping.pdfX,
+          y: mapping.pdfY,
+          size: mapping.fontSize,
+          font: customFont,
+          color: rgb(0, 0, 0),
+        });
+      }
     }
   });
 
@@ -141,8 +167,10 @@ export async function generatePdf(
     const y = itemMapping.pdfStartY - (index * itemMapping.pdfRowHeight);
     const qty = item.qty === '' ? 0 : Number(item.qty);
     const price = item.price === '' ? 0 : Number(item.price);
-    const total = qty * price;
-    grandTotal += total;
+    const isUsd = item.currency === 'USD';
+    const rate = data.exchangeRate === '' || data.exchangeRate === undefined ? 1 : Number(data.exchangeRate);
+    const itemTotalInGel = qty * price * (isUsd ? rate : 1);
+    grandTotal += itemTotalInGel;
     
     if (item.name) {
       page.drawText(item.name, {
@@ -165,7 +193,7 @@ export async function generatePdf(
     }
     
     if (item.price !== '') {
-      const text = price.toFixed(2);
+      const text = item.currency === 'USD' ? `${price.toFixed(2)} $` : `${price.toFixed(2)} ლ`;
       const textWidth = customFont.widthOfTextAtSize(text, 10);
       page.drawText(text, {
         x: itemMapping.cols.price.pdfX - (textWidth / 2),
@@ -176,7 +204,8 @@ export async function generatePdf(
     }
     
     if (item.qty !== '' && item.price !== '') {
-      const text = total.toFixed(2);
+      const itemRowTotal = qty * price;
+      const text = item.currency === 'USD' ? `${itemRowTotal.toFixed(2)} $` : `${itemRowTotal.toFixed(2)} ლ`;
       const textWidth = customFont.widthOfTextAtSize(text, 10);
       page.drawText(text, {
         x: itemMapping.cols.total.pdfX - textWidth,
